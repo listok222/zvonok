@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Провод — звонки и сообщения напрямую</title>
+<style>
+  :root{
+    --bg:#0e1613;
+    --bg-panel:#141f1b;
+    --bg-raised:#1b2723;
+    --line:#2a3733;
+    --ink:#eef4f1;
+    --ink-dim:#9fb3ac;
+    --ink-faint:#6d817a;
+    --accent:#5ee6b0;
+    --accent-ink:#06231a;
+    --warn:#e6a15e;
+    --danger:#e66a5e;
+    --bubble-me:#1f4a3c;
+    --bubble-them:#1c2622;
+    --radius:14px;
+    --font-ui: "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+  :root:not([data-theme="light"]) {}
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f3f6f4;
+      --bg-panel:#ffffff;
+      --bg-raised:#ffffff;
+      --line:#dde5e1;
+      --ink:#0f1a16;
+      --ink-dim:#4b5f58;
+      --ink-faint:#7c8f88;
+      --accent:#0f9d6f;
+      --accent-ink:#f3fbf7;
+      --bubble-me:#d6f0e4;
+      --bubble-them:#eef2f0;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f3f6f4;
+    --bg-panel:#ffffff;
+    --bg-raised:#ffffff;
+    --line:#dde5e1;
+    --ink:#0f1a16;
+    --ink-dim:#4b5f58;
+    --ink-faint:#7c8f88;
+    --accent:#0f9d6f;
+    --accent-ink:#f3fbf7;
+    --bubble-me:#d6f0e4;
+    --bubble-them:#eef2f0;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-ui);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  button{font-family:inherit;}
+  ::selection{background:var(--accent);color:var(--accent-ink);}
+
+  .app{
+    max-width:1100px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  header.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 20px 10px;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand .mark{
+    font-size:22px;
+    letter-spacing:-0.02em;
+    font-weight:650;
+  }
+  .brand .mark span{color:var(--accent);}
+  .brand .tag{
+    font-size:12.5px;
+    color:var(--ink-faint);
+  }
+  .status-pill{
+    font-size:12px;
+    color:var(--ink-dim);
+    border:1px solid var(--line);
+    padding:5px 11px;
+    border-radius:100px;
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);}
+  .status-dot.live{background:var(--accent);box-shadow:0 0 0 3px rgba(94,230,176,0.18);}
+  .status-dot.bad{background:var(--danger);}
+
+  main{flex:1;display:flex;flex-direction:column;padding:0 16px 24px;}
+
+  /* ---------- Setup screens ---------- */
+  .screen{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:28px 24px;
+    margin-top:8px;
+  }
+  .screen h1{
+    font-size:21px;
+    font-weight:650;
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+  .screen p.lead{
+    color:var(--ink-dim);
+    font-size:14.5px;
+    line-height:1.55;
+    margin:0 0 22px;
+    max-width:60ch;
+  }
+
+  .preview-row{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    margin-bottom:20px;
+  }
+  .preview-box{
+    width:220px;
+    aspect-ratio:4/3;
+    background:#08110d;
+    border-radius:12px;
+    overflow:hidden;
+    position:relative;
+    flex-shrink:0;
+    border:1px solid var(--line);
+  }
+  .preview-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+  .preview-box .empty{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-faint);font-size:13px;text-align:center;padding:12px;
+  }
+  .mic-meter{
+    position:absolute;left:10px;right:10px;bottom:10px;
+    height:4px;background:rgba(255,255,255,0.12);border-radius:3px;overflow:hidden;
+  }
+  .mic-meter i{display:block;height:100%;width:0%;background:var(--accent);transition:width 60ms linear;}
+
+  .path-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  @media(max-width:640px){.path-grid{grid-template-columns:1fr;}}
+  .path-card{
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px;
+    background:var(--bg-raised);
+  }
+  .path-card h3{margin:0 0 4px;font-size:15.5px;}
+  .path-card p{margin:0 0 14px;color:var(--ink-dim);font-size:13.5px;line-height:1.5;}
+
+  .btn{
+    appearance:none;border:none;cursor:pointer;
+    border-radius:10px;
+    padding:11px 18px;
+    font-size:14.5px;
+    font-weight:600;
+    display:inline-flex;align-items:center;gap:8px;
+    transition:transform .08s ease, opacity .15s ease;
+  }
+  .btn:active{transform:scale(0.97);}
+  .btn-primary{background:var(--accent);color:var(--accent-ink);}
+  .btn-secondary{background:var(--bg-raised);color:var(--ink);border:1px solid var(--line);}
+  .btn-ghost{background:transparent;color:var(--ink-dim);border:1px solid var(--line);}
+  .btn-danger{background:var(--danger);color:#2a0f0c;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .btn.full{width:100%;justify-content:center;}
+
+  textarea.code-box{
+    width:100%;
+    background:#08110d;
+    color:#8fe6c2;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    line-height:1.5;
+    resize:vertical;
+    min-height:90px;
+  }
+  :root[data-theme="light"] textarea.code-box{background:#0f1a16;}
+  @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) textarea.code-box{background:#0f1a16;}}
+
+  .step{margin-top:14px;}
+  .step label{display:block;font-size:12.5px;color:var(--ink-dim);margin-bottom:6px;font-weight:600;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .hint{font-size:12px;color:var(--ink-faint);margin-top:8px;line-height:1.5;}
+
+  .back-link{
+    background:none;border:none;color:var(--ink-faint);font-size:13px;cursor:pointer;
+    padding:6px 0;margin-bottom:10px;text-align:left;
+  }
+  .back-link:hover{color:var(--ink);}
+
+  /* ---------- Call screen ---------- */
+  .call-wrap{
+    flex:1;
+    display:grid;
+    grid-template-columns:1fr 320px;
+    gap:14px;
+    margin-top:8px;
+    min-height:0;
+  }
+  @media(max-width:860px){
+    .call-wrap{grid-template-columns:1fr;}
+  }
+
+  .stage{
+    background:#08110d;
+    border-radius:18px;
+    position:relative;
+    overflow:hidden;
+    min-height:340px;
+    border:1px solid var(--line);
+  }
+  .stage video.remote{
+    width:100%;height:100%;object-fit:cover;display:block;
+  }
+  .stage .waiting{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--ink-faint);gap:10px;text-align:center;padding:20px;
+  }
+  .pip{
+    position:absolute;
+    right:14px;bottom:14px;
+    width:110px;aspect-ratio:4/3;
+    border-radius:10px;overflow:hidden;
+    border:1px solid rgba(255,255,255,0.2);
+    background:#0a1512;
+  }
+  .pip video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+  .pip .off{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:11px;}
+
+  .controls{
+    position:absolute;
+    left:0;right:0;bottom:14px;
+    display:flex;
+    justify-content:center;
+    gap:10px;
+  }
+  .ctrl-btn{
+    width:46px;height:46px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.15);
+    background:rgba(20,30,27,0.85);
+    color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:18px;
+    backdrop-filter:blur(6px);
+  }
+  .ctrl-btn.off{background:rgba(230,106,94,0.85);}
+  .ctrl-btn.on-accent{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .ctrl-btn.hangup{background:var(--danger);color:#2a0f0c;}
+
+  .ns-tag{
+    position:absolute;top:14px;left:14px;
+    font-size:11px;padding:5px 10px;border-radius:100px;
+    background:rgba(20,30,27,0.85);color:var(--ink-dim);
+    border:1px solid rgba(255,255,255,0.12);
+    display:flex;align-items:center;gap:6px;
+  }
+  .ns-tag.active{color:var(--accent);}
+  .ns-tag i{width:6px;height:6px;border-radius:50%;background:var(--ink-faint);}
+  .ns-tag.active i{background:var(--accent);}
+
+  /* ---------- Chat panel ---------- */
+  .chat-panel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    display:flex;flex-direction:column;
+    min-height:340px;
+    max-height:70vh;
+  }
+  .chat-head{
+    padding:14px 16px;border-bottom:1px solid var(--line);
+    font-size:13.5px;font-weight:600;color:var(--ink-dim);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .chat-log{
+    flex:1;overflow-y:auto;padding:14px 14px;
+    display:flex;flex-direction:column;gap:9px;
+  }
+  .msg{max-width:82%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-wrap:break-word;}
+  .msg.me{align-self:flex-end;background:var(--bubble-me);border-bottom-right-radius:4px;}
+  .msg.them{align-self:flex-start;background:var(--bubble-them);border-bottom-left-radius:4px;}
+  .msg.sys{align-self:center;color:var(--ink-faint);font-size:12px;background:none;padding:2px;}
+  .msg .meta{font-size:10.5px;color:var(--ink-faint);margin-top:4px;}
+  .msg img, .msg video{max-width:100%;border-radius:8px;display:block;margin-top:4px;}
+  .msg a.dl{color:var(--accent);text-decoration:none;font-size:13px;}
+  .progress-track{height:4px;background:rgba(255,255,255,0.12);border-radius:3px;overflow:hidden;margin-top:6px;}
+  .progress-fill{height:100%;background:var(--accent);width:0%;transition:width .15s ease;}
+
+  .chat-input{
+    border-top:1px solid var(--line);
+    padding:10px;
+    display:flex;gap:8px;align-items:flex-end;
+  }
+  .chat-input textarea{
+    flex:1;resize:none;background:var(--bg-raised);border:1px solid var(--line);
+    border-radius:10px;color:var(--ink);padding:9px 12px;font-size:14px;font-family:inherit;
+    max-height:90px;
+  }
+  .icon-btn{
+    width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+    background:var(--bg-raised);color:var(--ink-dim);cursor:pointer;font-size:16px;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .icon-btn.send{background:var(--accent);color:var(--accent-ink);border-color:transparent;}
+  .icon-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+  input[type=file]{display:none;}
+
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    background:var(--bg-raised);border:1px solid var(--line);color:var(--ink);
+    padding:10px 16px;border-radius:10px;font-size:13px;z-index:50;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3);
+  }
+
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">Провод<span>.</span></div>
+      <div class="tag">звонок и чат напрямую между двумя браузерами</div>
+    </div>
+    <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">не подключено</span></div>
+  </header>
+
+  <main>
+
+    <!-- SCREEN 1: entry -->
+    <section class="screen" id="screenEntry">
+      <h1>Проверь камеру и микрофон</h1>
+      <p class="lead">Разреши доступ, чтобы увидеть себя и настроить шумоподавление до того, как звонить. Соединение идёт напрямую между двумя устройствами — без промежуточного сервера, который бы пересжимал видео и файлы.</p>
+
+      <div class="preview-row">
+        <div class="preview-box">
+          <video id="selfPreview" autoplay playsinline muted></video>
+          <div class="empty" id="previewEmpty">камера выключена</div>
+          <div class="mic-meter"><i id="micMeterFill"></i></div>
+        </div>
+        <div style="flex:1;min-width:220px;">
+          <div class="row">
+            <button class="btn btn-primary" id="btnGrant">Разрешить камеру и микрофон</button>
+          </div>
+          <div class="hint" id="grantHint">Ничего не отправляется, пока вы не начнёте звонок.</div>
+        </div>
+      </div>
+
+      <div class="path-grid" id="pathGrid" style="opacity:0.45;pointer-events:none;">
+        <div class="path-card">
+          <h3>Начать звонок</h3>
+          <p>Ты создаёшь звонок и получаешь код приглашения — отправь его собеседнику любым способом (мессенджер, почта).</p>
+          <button class="btn btn-secondary full" id="btnGoCreate">Создать звонок</button>
+        </div>
+        <div class="path-card">
+          <h3>Присоединиться</h3>
+          <p>У тебя есть код от собеседника? Вставь его сюда, чтобы подключиться к его звонку.</p>
+          <button class="btn btn-secondary full" id="btnGoJoin">Ввести код</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: create -->
+    <section class="screen hidden" id="screenCreate">
+      <button class="back-link" data-back>← назад</button>
+      <h1>Шаг 1 — отправь код собеседнику</h1>
+      <p class="lead">Скопируй код ниже и пришли его тому, кому звонишь (в любом мессенджере). Он вставит его на своей странице и получит код-ответ для тебя.</p>
+      <div class="step">
+        <label>Твой код приглашения</label>
+        <textarea class="code-box" id="offerOut" readonly placeholder="генерируем код…"></textarea>
+        <div class="row">
+          <button class="btn btn-secondary" id="copyOffer">Скопировать код</button>
+        </div>
+      </div>
+      <div class="step">
+        <label>Шаг 2 — вставь код-ответ, который пришлёт собеседник</label>
+        <textarea class="code-box" id="answerIn" placeholder="Вставь сюда код-ответ…" style="color:var(--ink);"></textarea>
+        <div class="row">
+          <button class="btn btn-primary" id="btnConnectCaller">Подключиться</button>
+        </div>
+        <div class="hint">Пока не будет введён код-ответ, звонок не начнётся.</div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: join -->
+    <section class="screen hidden" id="screenJoin">
+      <button class="back-link" data-back>← назад</button>
+      <h1>Присоединиться к звонку</h1>
+      <p class="lead">Вставь код, который прислал собеседник, и нажми «Ответить». Получившийся код-ответ отправь ему обратно — как только он его вставит, начнётся звонок.</p>
+      <div class="step">
+        <label>Код от собеседника</label>
+        <textarea class="code-box" id="offerIn" placeholder="Вставь сюда код приглашения…" style="color:var(--ink);"></textarea>
+        <div class="row">
+          <button class="btn btn-primary" id="btnMakeAnswer">Ответить</button>
+        </div>
+      </div>
+      <div class="step hidden" id="answerOutStep">
+        <label>Отправь этот код-ответ обратно</label>
+        <textarea class="code-box" id="answerOut" readonly></textarea>
+        <div class="row">
+          <button class="btn btn-secondary" id="copyAnswer">Скопировать код-ответ</button>
+        </div>
+        <div class="hint">Звонок начнётся сам, как только собеседник вставит этот код у себя.</div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: call -->
+    <section class="hidden" id="screenCall" style="flex:1;display:flex;flex-direction:column;">
+      <div class="call-wrap">
+        <div class="stage" id="stage">
+          <video class="remote" id="remoteVideo" autoplay playsinline></video>
+          <div class="waiting" id="waitingMsg">
+            <div style="font-size:26px;">☎</div>
+            <div>ждём подключения собеседника…</div>
+          </div>
+          <div class="ns-tag active" id="nsTag"><i></i> шумоподавление вкл.</div>
+          <div class="pip">
+            <video id="localVideoCall" autoplay playsinline muted></video>
+            <div class="off hidden" id="pipOff">камера выкл.</div>
+          </div>
+          <div class="controls">
+            <button class="ctrl-btn" id="btnMic" title="Микрофон">🎙️</button>
+            <button class="ctrl-btn" id="btnCam" title="Камера">📷</button>
+            <button class="ctrl-btn on-accent" id="btnNS" title="Шумоподавление">🌊</button>
+            <button class="ctrl-btn hangup" id="btnHangup" title="Завершить">⏹</button>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="chat-head">
+            <span>Сообщения</span>
+            <span id="peerState" style="font-weight:400;color:var(--ink-faint);">—</span>
+          </div>
+          <div class="chat-log" id="chatLog"></div>
+          <div class="chat-input">
+            <button class="icon-btn" id="btnAttach" title="Прикрепить файл">📎</button>
+            <input type="file" id="fileInput" multiple>
+            <textarea id="msgInput" rows="1" placeholder="Написать сообщение…"></textarea>
+            <button class="icon-btn send" id="btnSend" title="Отправить">➤</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  let localStream = null;         // raw camera+mic stream
+  let outgoingStream = null;      // stream actually sent to peer (post noise-suppression)
+  let pc = null;
+  let chatChannel = null, fileChannel = null;
+  let isCaller = false;
+  let nsEnabled = true;
+  let camOn = true, micOn = true;
+  let audioCtx = null, gateNode = null, processedDest = null, sourceNode = null;
+  let originalAudioTrack = null, processedAudioTrack = null;
+  let sender = null; // RTCRtpSender for audio
+
+  const fileQueue = [];
+  let sendingFile = false;
+  const incoming = {}; // id -> {name, size, mime, chunks:[], received:0}
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+  function show(id){ $(id).classList.remove('hidden'); }
+  function hide(id){ $(id).classList.add('hidden'); }
+  function setStatus(text, mode){
+    $('statusText').textContent = text;
+    const dot = $('statusDot');
+    dot.className = 'status-dot' + (mode==='live' ? ' live' : mode==='bad' ? ' bad' : '');
+  }
+  function toast(msg){
+    const t = document.createElement('div');
+    t.className='toast'; t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(), 2600);
+  }
+  function fmtBytes(b){
+    if(b<1024) return b+' Б';
+    if(b<1024*1024) return (b/1024).toFixed(1)+' КБ';
+    return (b/1024/1024).toFixed(1)+' МБ';
+  }
+
+  // ---------- media + noise suppression ----------
+  async function grantMedia(){
+    try{
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video:{ width:{ideal:1280}, height:{ideal:720} },
+        audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true }
+      });
+    }catch(err){
+      toast('Нет доступа к камере/микрофону: ' + err.message);
+      return false;
+    }
+    $('selfPreview').srcObject = localStream;
+    $('previewEmpty').style.display='none';
+    $('pathGrid').style.opacity='1';
+    $('pathGrid').style.pointerEvents='auto';
+    $('btnGrant').textContent = 'Камера и микрофон подключены';
+    $('btnGrant').disabled = true;
+    $('grantHint').textContent = 'Готово. Можно начинать или присоединяться к звонку.';
+    buildProcessedAudio();
+    startMicMeter(localStream);
+    return true;
+  }
+
+  // Builds a processed copy of the mic track: highpass filter -> compressor -> simple noise gate.
+  function buildProcessedAudio(){
+    originalAudioTrack = localStream.getAudioTracks()[0];
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sourceNode = audioCtx.createMediaStreamSource(new MediaStream([originalAudioTrack]));
+
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 90; // cut low rumble (fans, desk noise)
+
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -32;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 8;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.15;
+
+    // Noise gate: analyse RMS, mute the signal below a threshold so steady background
+    // hiss/hum doesn't get transmitted between words.
+    const gateProcessor = audioCtx.createScriptProcessor(1024, 1, 1);
+    let envelope = 0;
+    const gateThreshold = 0.012;
+    gateProcessor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const output = e.outputBuffer.getChannelData(0);
+      let sumSq = 0;
+      for(let i=0;i<input.length;i++) sumSq += input[i]*input[i];
+      const rms = Math.sqrt(sumSq/input.length);
+      envelope = envelope*0.85 + rms*0.15;
+      const gain = nsEnabled ? (envelope > gateThreshold ? 1 : Math.max(0, envelope/gateThreshold)*0.3) : 1;
+      for(let i=0;i<input.length;i++) output[i] = input[i]*gain;
+    };
+
+    processedDest = audioCtx.createMediaStreamDestination();
+    sourceNode.connect(highpass);
+    highpass.connect(compressor);
+    compressor.connect(gateProcessor);
+    gateProcessor.connect(processedDest);
+
+    processedAudioTrack = processedDest.stream.getAudioTracks()[0];
+
+    outgoingStream = new MediaStream([
+      localStream.getVideoTracks()[0],
+      processedAudioTrack
+    ]);
+  }
+
+  function startMicMeter(stream){
+    try{
+      const ctx = audioCtx;
+      const src = ctx.createMediaStreamSource(new MediaStream([stream.getAudioTracks()[0]]));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      function tick(){
+        analyser.getByteFrequencyData(data);
+        let sum=0; for(const v of data) sum+=v;
+        const level = Math.min(100, (sum/data.length)*1.4);
+        const el = $('micMeterFill');
+        if(el) el.style.width = level+'%';
+        requestAnimationFrame(tick);
+      }
+      tick();
+    }catch(e){}
+  }
+
+  // ---------- WebRTC plumbing ----------
+  function waitIceComplete(peer){
+    return new Promise((resolve)=>{
+      if(peer.iceGatheringState === 'complete'){ resolve(); return; }
+      const t = setTimeout(()=>resolve(), 4000); // don't hang forever without TURN
+      peer.addEventListener('icegatheringstatechange', function handler(){
+        if(peer.iceGatheringState === 'complete'){
+          clearTimeout(t);
+          peer.removeEventListener('icegatheringstatechange', handler);
+          resolve();
+        }
+      });
+    });
+  }
+
+  function createPC(){
+    const p = new RTCPeerConnection({
+      iceServers:[{urls:'stun:stun.l.google.com:19302'}]
+    });
+    (outgoingStream || localStream).getTracks().forEach(track=>{
+      const s = p.addTrack(track, outgoingStream || localStream);
+      if(track.kind === 'audio') sender = s;
+    });
+    p.ontrack = (e)=>{
+      $('remoteVideo').srcObject = e.streams[0];
+      hide('waitingMsg');
+    };
+    p.onconnectionstatechange = ()=>{
+      const st = p.connectionState;
+      if(st==='connected'){ setStatus('в разговоре', 'live'); $('peerState').textContent='онлайн'; }
+      else if(st==='disconnected' || st==='failed'){ setStatus('связь потеряна','bad'); $('peerState').textContent='офлайн'; }
+      else if(st==='closed'){ setStatus('не подключено'); }
+      else { setStatus('соединяемся…'); }
+    };
+    return p;
+  }
+
+  function wireDataChannel(channel, kind){
+    channel.binaryType = 'arraybuffer';
+    if(kind==='chat'){
+      chatChannel = channel;
+      channel.onopen = ()=> addSysMsg('Собеседник на связи.');
+      channel.onmessage = (e)=> handleChatMessage(JSON.parse(e.data));
+    } else {
+      fileChannel = channel;
+      fileChannel.onmessage = (e)=> handleFileChunk(e.data);
+    }
+  }
+
+  // ---------- Create call (caller) ----------
+  async function startCreate(){
+    show('screenCreate');
+    isCaller = true;
+    pc = createPC();
+    wireDataChannel(pc.createDataChannel('chat'), 'chat');
+    wireDataChannel(pc.createDataChannel('file', {ordered:true}), 'file');
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitIceComplete(pc);
+    $('offerOut').value = btoa(JSON.stringify(pc.localDescription));
+  }
+
+  async function acceptAnswer(){
+    const raw = $('answerIn').value.trim();
+    if(!raw){ toast('Вставь код-ответ.'); return; }
+    try{
+      const desc = JSON.parse(atob(raw));
+      await pc.setRemoteDescription(desc);
+      enterCallScreen();
+    }catch(e){
+      toast('Код-ответ не распознан. Проверь, что скопирован полностью.');
+    }
+  }
+
+  // ---------- Join call (callee) ----------
+  async function startJoin(){
+    show('screenJoin');
+  }
+
+  async function makeAnswer(){
+    const raw = $('offerIn').value.trim();
+    if(!raw){ toast('Вставь код приглашения.'); return; }
+    let desc;
+    try{ desc = JSON.parse(atob(raw)); }
+    catch(e){ toast('Код приглашения не распознан.'); return; }
+
+    isCaller = false;
+    pc = createPC();
+    pc.ondatachannel = (e)=>{
+      wireDataChannel(e.channel, e.channel.label === 'chat' ? 'chat' : 'file');
+    };
+    await pc.setRemoteDescription(desc);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await waitIceComplete(pc);
+    $('answerOut').value = btoa(JSON.stringify(pc.localDescription));
+    show('answerOutStep');
+
+    // Once ICE connects for the callee, jump straight into the call screen too.
+    pc.addEventListener('connectionstatechange', function once(){
+      if(pc.connectionState === 'connected'){
+        enterCallScreen();
+        pc.removeEventListener('connectionstatechange', once);
+      }
+    });
+  }
+
+  function enterCallScreen(){
+    ['screenEntry','screenCreate','screenJoin'].forEach(hide);
+    show('screenCall');
+    $('localVideoCall').srcObject = localStream;
+  }
+
+  // ---------- Controls ----------
+  function toggleMic(){
+    micOn = !micOn;
+    localStream.getAudioTracks().forEach(t=>t.enabled = micOn);
+    if(processedAudioTrack) processedAudioTrack.enabled = micOn;
+    $('btnMic').classList.toggle('off', !micOn);
+    $('btnMic').textContent = micOn ? '🎙️' : '🔇';
+  }
+  function toggleCam(){
+    camOn = !camOn;
+    localStream.getVideoTracks().forEach(t=>t.enabled = camOn);
+    $('btnCam').classList.toggle('off', !camOn);
+    $('pipOff').classList.toggle('hidden', camOn);
+  }
+  function toggleNS(){
+    nsEnabled = !nsEnabled;
+    $('btnNS').classList.toggle('on-accent', nsEnabled);
+    $('nsTag').classList.toggle('active', nsEnabled);
+    $('nsTag').innerHTML = '<i></i> ' + (nsEnabled ? 'шумоподавление вкл.' : 'шумоподавление выкл.');
+    if(sender){
+      sender.replaceTrack(nsEnabled ? processedAudioTrack : originalAudioTrack);
+    }
+  }
+  function hangup(){
+    if(chatChannel) try{chatChannel.close()}catch(e){}
+    if(fileChannel) try{fileChannel.close()}catch(e){}
+    if(pc) try{pc.close()}catch(e){}
+    setStatus('не подключено');
+    location.reload();
+  }
+
+  // ---------- Chat: text ----------
+  function addMsg(text, who, extraHtml){
+    const log = $('chatLog');
+    const div = document.createElement('div');
+    div.className = 'msg ' + who;
+    div.innerHTML = (text ? escapeHtml(text) : '') + (extraHtml || '');
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+  }
+  function addSysMsg(text){
+    const log = $('chatLog');
+    const div = document.createElement('div');
+    div.className='msg sys';
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function sendText(){
+    const input = $('msgInput');
+    const text = input.value.trim();
+    if(!text || !chatChannel || chatChannel.readyState !== 'open') return;
+    chatChannel.send(JSON.stringify({type:'text', text}));
+    addMsg(text, 'me');
+    input.value='';
+  }
+
+  function handleChatMessage(msg){
+    if(msg.type === 'text'){
+      addMsg(msg.text, 'them');
+    } else if(msg.type === 'file-start'){
+      incoming[msg.id] = {name:msg.name, size:msg.size, mime:msg.mime, chunks:[], received:0};
+      const bubble = addMsg(null, 'them', `<div>📄 ${escapeHtml(msg.name)} · ${fmtBytes(msg.size)}</div><div class="progress-track"><div class="progress-fill" id="prog-${msg.id}"></div></div>`);
+      incoming[msg.id].bubble = bubble;
+    } else if(msg.type === 'file-end'){
+      finalizeIncomingFile(msg.id);
+    }
+  }
+
+  // ---------- Files: sending (raw bytes, chunked, no re-encoding) ----------
+  const CHUNK = 16 * 1024;
+  const BUFFER_HIGH = 1_000_000;
+
+  function queueFiles(fileList){
+    for(const f of fileList) fileQueue.push(f);
+    pumpFileQueue();
+  }
+
+  async function pumpFileQueue(){
+    if(sendingFile || fileQueue.length === 0) return;
+    sendingFile = true;
+    const file = fileQueue.shift();
+    const id = 'f' + Date.now() + Math.random().toString(36).slice(2,7);
+
+    chatChannel.send(JSON.stringify({type:'file-start', id, name:file.name, size:file.size, mime:file.type}));
+    const bubble = addMsg(null, 'me', `<div>📄 ${escapeHtml(file.name)} · ${fmtBytes(file.size)}</div><div class="progress-track"><div class="progress-fill" id="progout-${id}"></div></div>`);
+
+    let offset = 0;
+    fileChannel.bufferedAmountLowThreshold = BUFFER_HIGH / 2;
+
+    while(offset < file.size){
+      if(fileChannel.bufferedAmount > BUFFER_HIGH){
+        await new Promise(res => fileChannel.addEventListener('bufferedamountlow', res, {once:true}));
+      }
+      const slice = file.slice(offset, offset + CHUNK);
+      const buf = await slice.arrayBuffer();
+      fileChannel.send(buf);
+      offset += buf.byteLength;
+      const pct = Math.round((offset/file.size)*100);
+      const fillEl = document.getElementById('progout-'+id);
+      if(fillEl) fillEl.style.width = pct + '%';
+    }
+    chatChannel.send(JSON.stringify({type:'file-end', id}));
+    const fillEl = document.getElementById('progout-'+id);
+    if(fillEl) fillEl.style.width = '100%';
+
+    sendingFile = false;
+    pumpFileQueue();
+  }
+
+  function handleFileChunk(buf){
+    // find the current in-flight incoming file (single-file-at-a-time protocol)
+    const ids = Object.keys(incoming).filter(id => incoming[id].received < incoming[id].size);
+    if(ids.length === 0) return;
+    const id = ids[0];
+    const rec = incoming[id];
+    rec.chunks.push(buf);
+    rec.received += buf.byteLength;
+    const pct = Math.round((rec.received/rec.size)*100);
+    const fillEl = document.getElementById('prog-'+id);
+    if(fillEl) fillEl.style.width = pct+'%';
+  }
+
+  function finalizeIncomingFile(id){
+    const rec = incoming[id];
+    if(!rec) return;
+    const blob = new Blob(rec.chunks, {type: rec.mime || 'application/octet-stream'});
+    const url = URL.createObjectURL(blob);
+    let previewHtml = '';
+    if(rec.mime && rec.mime.startsWith('image/')){
+      previewHtml = `<img src="${url}" alt="${escapeHtml(rec.name)}">`;
+    } else if(rec.mime && rec.mime.startsWith('video/')){
+      previewHtml = `<video src="${url}" controls></video>`;
+    }
+    previewHtml += `<div><a class="dl" href="${url}" download="${escapeHtml(rec.name)}">Скачать оригинал (${fmtBytes(rec.size)})</a></div>`;
+    if(rec.bubble){
+      rec.bubble.innerHTML = `<div>📄 ${escapeHtml(rec.name)}</div>` + previewHtml;
+    }
+    delete incoming[id];
+  }
+
+  // ---------- wiring ----------
+  $('btnGrant').addEventListener('click', grantMedia);
+  $('btnGoCreate').addEventListener('click', startCreate);
+  $('btnGoJoin').addEventListener('click', startJoin);
+  document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click', ()=>{
+    ['screenCreate','screenJoin'].forEach(hide);
+    show('screenEntry');
+  }));
+  $('copyOffer').addEventListener('click', ()=>{ navigator.clipboard.writeText($('offerOut').value).then(()=>toast('Код скопирован')); });
+  $('copyAnswer').addEventListener('click', ()=>{ navigator.clipboard.writeText($('answerOut').value).then(()=>toast('Код-ответ скопирован')); });
+  $('btnConnectCaller').addEventListener('click', acceptAnswer);
+  $('btnMakeAnswer').addEventListener('click', makeAnswer);
+
+  $('btnMic').addEventListener('click', toggleMic);
+  $('btnCam').addEventListener('click', toggleCam);
+  $('btnNS').addEventListener('click', toggleNS);
+  $('btnHangup').addEventListener('click', hangup);
+
+  $('btnSend').addEventListener('click', sendText);
+  $('msgInput').addEventListener('keydown', (e)=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendText(); }
+  });
+  $('btnAttach').addEventListener('click', ()=> $('fileInput').click());
+  $('fileInput').addEventListener('change', (e)=>{
+    if(e.target.files.length) queueFiles(e.target.files);
+    e.target.value = '';
+  });
+
+})();
+</script>
+</body>
+</html>
